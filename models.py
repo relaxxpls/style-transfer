@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class PrintLayer(nn.Module):
@@ -25,60 +26,84 @@ class ResidualBlock(nn.Module):
         )
 
     def forward(self, x):
-        return x + self.conv_block(x)
+        x += self.conv_block(x)
+
+        return x
 
 
 class Generator(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
 
-        # ? size of feature maps
-        self.num_features = 64
-
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels, self.num_features, 7, padding=3),
-            nn.InstanceNorm2d(self.num_features),
+            # Initial convolution block
+            nn.Conv2d(in_channels, 64, kernel_size=7, padding=3),
+            nn.InstanceNorm2d(64),
             nn.ReLU(inplace=True),
-            nn.Conv2d(self.num_features, self.num_features * 2, 3, stride=2, padding=1),
-            nn.InstanceNorm2d(self.num_features * 2),
+            # Downsampling
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
+            nn.InstanceNorm2d(128),
             nn.ReLU(inplace=True),
-            nn.Conv2d(
-                self.num_features * 2, self.num_features * 4, 3, stride=2, padding=1
-            ),
-            nn.InstanceNorm2d(self.num_features * 4),
+            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),
+            nn.InstanceNorm2d(256),
             nn.ReLU(inplace=True),
-            ResidualBlock(self.num_features * 4),
-            ResidualBlock(self.num_features * 4),
-            ResidualBlock(self.num_features * 4),
-            ResidualBlock(self.num_features * 4),
-            ResidualBlock(self.num_features * 4),
-            ResidualBlock(self.num_features * 4),
-            ResidualBlock(self.num_features * 4),
-            ResidualBlock(self.num_features * 4),
-            ResidualBlock(self.num_features * 4),
+            # Residual blocks
+            ResidualBlock(256),
+            ResidualBlock(256),
+            ResidualBlock(256),
+            ResidualBlock(256),
+            ResidualBlock(256),
+            ResidualBlock(256),
+            ResidualBlock(256),
+            ResidualBlock(256),
+            ResidualBlock(256),
+            # Upsampling
             nn.ConvTranspose2d(
-                self.num_features * 4,
-                self.num_features * 2,
-                3,
-                stride=2,
-                padding=1,
-                output_padding=1,
+                256, 128, kernel_size=3, stride=2, padding=1, output_padding=1
             ),
-            nn.InstanceNorm2d(self.num_features * 2),
+            nn.InstanceNorm2d(128),
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(
-                self.num_features * 2,
-                self.num_features,
-                3,
-                stride=2,
-                padding=1,
-                output_padding=1,
+                128, 64, kernel_size=3, stride=2, padding=1, output_padding=1
             ),
-            nn.InstanceNorm2d(self.num_features),
+            nn.InstanceNorm2d(64),
             nn.ReLU(inplace=True),
-            nn.Conv2d(64, out_channels, 7, padding=3),
+            # Output layer
+            nn.Conv2d(64, out_channels, kernel_size=7, padding=3),
             nn.Tanh(),
         )
 
     def forward(self, x):
-        return self.model(x)
+        x = self.model(x)
+
+        return x
+
+
+class Discriminator(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+
+        self.model = nn.Sequential(
+            nn.Conv2d(in_channels, 64, kernel_size=4, stride=2, padding=1),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),
+            nn.InstanceNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),
+            nn.InstanceNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(256, 512, kernel_size=4, padding=1),
+            nn.InstanceNorm2d(512),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(512, 1, kernel_size=4, padding=1),
+        )
+
+    def forward(self, x):
+        # ? x.shape: (batch_size, 1, 64, 64)
+        x = self.model(x)
+        # ? x.shape: (batch_size, 1, 6, 6)
+        x = F.avg_pool2d(x, x.shape[2:])
+        # ? x.shape: (batch_size, 1, 1, 1)
+        x = x.flatten(1)
+
+        return x

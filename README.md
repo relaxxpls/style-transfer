@@ -1,3 +1,3 @@
 # style-transfer
 
-Neural style transfer using Generative Adversarial Networks
+Neural style transfer using CycleGAN
