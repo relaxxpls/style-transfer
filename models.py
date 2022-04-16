@@ -26,7 +26,7 @@ class ResidualBlock(nn.Module):
         )
 
     def forward(self, x):
-        x += self.conv_block(x)
+        x = x + self.conv_block(x)
 
         return x
 
@@ -104,6 +104,6 @@ class Discriminator(nn.Module):
         # ? x.shape: (batch_size, 1, 6, 6)
         x = F.avg_pool2d(x, x.shape[2:])
         # ? x.shape: (batch_size, 1, 1, 1)
-        x = x.flatten(1)
+        x = x.flatten(0)
 
         return x
